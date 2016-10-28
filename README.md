@@ -13,4 +13,4 @@
 2. Install PyOpenGL
 ```pip install PyOpenGL PyOpenGL_accelerate```
 
-Run using `python templateMain.py`
+Run using `python2 bipyramidMain.py`
