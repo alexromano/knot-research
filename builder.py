@@ -78,29 +78,44 @@ class Knot:
 		self.sigma = 1
 		self.currCost = 0
 		self.s = None
+		self.symmetry = True
+		self.length = 0
 
  	'''Knot Building Section '''
 
-	def buildKnot(self,azims):
+	def buildKnot(self,azims,symmetry=False):
 		del self.modules[:]
 		self.azims = azims
-		for i in range(len(self.azims)):
-			self.modules.append(self.module(i))
-			self.modules.append(self.module(i,False))
-		self.modules.append(self.buildBase())
-		# print "dis",self.endDistance()
-		# print "ang",self.endAngle()
-		# print self.currCost
+		self.symmetry = symmetry
+		if symmetry:
+			for i in range(len(self.azims)):
+				self.modules.append(self.module(i))
+				self.modules.append(self.module(i,False))
+			self.modules.append(self.buildBase())
+			# print "dis",self.endDistance()
+			# print "ang",self.endAngle()
+			# print self.currCost
+		else:
+			for i in range(len(self.azims)):
+				if i < len(self.azims)/2:
+					self.modules.append(self.module(i))
+				else:
+					j = i%(len(self.azims)/2)
+					self.modules.append(self.module(j,False))
+			self.modules.append(self.buildBase())
+		self.length = self.wormLength()
 
 	def module(self,numRotations,upper=True):
+		numRotations +=1
 		m = 2
-
 		points = np.array(Knot.mlist+Knot.blist)
 		pointFlipped = self.flipped(points)
 		rotated = points
 		rFlipped = pointFlipped
+		azims = self.azims
 		if upper == False:
-			azims = [-a for a in self.azims]
+			if self.symmetry:
+				azims = [-a for a in self.azims]
 			m = -2
 			# need extra rotation for lower half
 			rotated = rotated - np.array([Knot.bendRad,0,0])
@@ -112,19 +127,24 @@ class Knot:
 			rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 		# print numRotations
 		for i in range(numRotations):
-			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(self.azims[numRotations-i]),[0,0,1])[:3,:3].T)
-			rotated = rotated - np.array([Knot.bendRad,0,0])
-			rotated = np.dot(rotated,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
-			rotated = rotated + np.array([Knot.bendRad,0,0])
+			aIndex = numRotations - i - 1
+			if self.symmetry == False and upper == False:
+				aIndex += len(self.azims)/2 
+			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(azims[aIndex]),[0,0,1])[:3,:3].T)
+			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(azims[aIndex]),[0,0,1])[:3,:3].T)
+			if aIndex != 0:
+				rotated = rotated - np.array([Knot.bendRad,0,0])
+				rotated = np.dot(rotated,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
+				rotated = rotated + np.array([Knot.bendRad,0,0])
 
-			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(self.azims[numRotations-i]),[0,0,1])[:3,:3].T)
-			rFlipped= rFlipped - np.array([Knot.bendRad,0,0])
-			rFlipped = np.dot(rFlipped,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
-			rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
+				rFlipped= rFlipped - np.array([Knot.bendRad,0,0])
+				rFlipped = np.dot(rFlipped,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
+				rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 		
-		if upper == False:
-			m = -1
-		else: m = 1
+		# if upper == False:
+			# m = -1
+		# else: m = 1
+		m  = 1
 		#half rotation for upper and lower so base module fits in between
 		rotated = rotated - np.array([Knot.bendRad,0,0])
 		rotated = np.dot(rotated,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
@@ -135,8 +155,12 @@ class Knot:
 		rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 
 		#if end module, compute center of blist and center of all points
-		if numRotations == len(self.azims)-1:
-			
+		isEnd = False
+		if self.symmetry:
+			isEnd = (numRotations-1) == (len(self.azims)-1)
+		else:
+			isEnd = (numRotations-1) == (len(self.azims)/2 - 1)
+		if isEnd:
 			
 			
 			if upper:
@@ -196,44 +220,144 @@ class Knot:
 		print "set sigma to ",self.sigma
 
 	def cost(self):
-		return self.endDistance() + self.endAngle()
+		angleFactor = 100
+		# if self.endDistance() < 0.35:
+			# angleFactor = 10
+		angle = self.endAngle()/(self.endDistance()*angleFactor)
+		distance = self.endDistance()
+		# print "angle portion ", angle
+		# print "distance portion ", distance
+		return angle,distance,angle + distance
+		# return self.endDistance() + self.endMidDistance()
 
 	def optimize(self):
 		# if self.optimizing:
-		a0Increment = self.takeAzimuthStep(0)
-		a1Increment = self.takeAzimuthStep(1)
-		a2Increment = self.takeAzimuthStep(2)
-		a3Increment = self.takeAzimuthStep(3)
-		a4Increment = self.takeAzimuthStep(4)
-
-		biggest = float(max([abs(x) for x in [a0Increment,a1Increment,a2Increment,a3Increment,a4Increment]]))
-		a0Increment = a0Increment/biggest * Knot.azimStep
-		a1Increment = a1Increment/biggest * Knot.azimStep
-		a2Increment = a2Increment/biggest * Knot.azimStep
-		a3Increment = a3Increment/biggest * Knot.azimStep
-		a4Increment = a4Increment/biggest * Knot.azimStep
-
-		self.azims[0]+= a0Increment*self.sigma
-		self.azims[1]+= a1Increment*self.sigma
-		self.azims[2]+= a2Increment*self.sigma
-		self.azims[3]+= a3Increment*self.sigma
-		self.azims[4]+= a4Increment*self.sigma
-		print self.azims
+		increments = []
+		betas = []
+		gammas = []
+		# time1 = time.time()
+		for i in range(len(self.azims)):
+			increments.append(self.takeAzimuthStep(i))
+			betas.append(self.takeBetaStep(i))
+			gammas.append(self.takeGammaStep(i))
+		# time2 = time.time()
+		arr = [abs(x) for x in increments+betas+gammas]
+		biggest = float(max(arr))
+		biggestArr = []
+		ind = arr.index(biggest)
+		if ind < 16:
+			biggestArr = increments
+		elif ind >= 16 and ind < 32:
+			biggestArr = betas
+		else:
+			biggestArr = gammas
+		# for i in range(len(self.azims)):
+		# 	biggestArr[i] = biggestArr[i]/biggest * Knot.azimStep
+			# increments[i] = increments[i]/biggest * Knot.azimStep			
+			# betas[i] = betas[i]/biggest * Knot.azimStep
+			# gammas[i] = gammas[i]/biggest * Knot.azimStep
+		# time3 = time.time()
+		if biggestArr == increments:
+			for i in range(len(self.azims)):
+				self.azims[i] += (biggestArr[i]/biggest)*Knot.azimStep*self.sigma
+		elif biggestArr == betas:
+			i = 16-32+ind
+			print "ind ",ind
+			print "i ",i
+			self.updateAzimsForBeta(i, biggest, biggestArr)
+		elif biggestArr == gammas:
+			i = -32+ind
+			print "ind ",ind
+			print "i ", i
+			self.updateAzimsForGamma(i, biggest, biggestArr)
+		# self.azims[i] += (increments[i]+betas[i]+gammas[i])*self.sigma
+		# time4 = time.time()
+		print "azims ",self.azims
 		self.buildKnot(self.azims)
-		self.currCost = self.cost()
-		print "cost",self.currCost
+		# time5 = time.time()
+		self.currCost = self.cost()[2]
+		print "angle cost: ", self.cost()[0], " distance cost ",self.cost()[1]," total ",self.currCost
 		print "angle",self.endAngle()
 		print "distance",self.endDistance()
-			# self.s.enter(0.1,1,self.optimize,())
+		# print time2-time1
+		# print time3-time2
+		# print time4-time3
+		# print time5-time4
+		# self.s.enter(0.1,1,self.optimize,())
+
+	def updateAzimsForGamma(self,i, biggest, biggestArr):
+		print biggestArr
+		res = [0]*len(self.azims)
+		j = i
+		# change everything <= i
+		while (j >= 1):
+			ratioFactor = biggestArr[j]/biggest
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j-1] += increment
+			self.azims[j] -= 2*increment
+			self.azims[j+1] += increment
+			res[j-1] = increment
+			res[j] = 2*increment
+			res[j+1] = increment
+			j -= 3
+		# change everything > i
+		j = i+3
+		while (j < len(biggestArr)-1):
+			ratioFactor = biggestArr[j]/biggest
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j-1] += increment
+			self.azims[j] -= 2*increment
+			self.azims[j+1] += increment
+			res[j-1] = increment
+			res[j] = 2*increment
+			res[j+1] = increment
+			j += 3
+		print res
+
+	def updateAzimsForBeta(self, i, biggest, biggestArr):
+		res = [0]*len(self.azims)
+		j = i
+		# change everything <= i
+		while (j >= 0):
+			ratioFactor = biggestArr[j]/biggest
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j] += increment
+			self.azims[j+1] -= increment
+			res[j] = increment
+			res[j+1] = increment
+			j -= 2
+		# change everything > i
+		j = i+2
+		while (j < len(biggestArr)-1):
+			ratioFactor = biggestArr[j]/biggest
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j] += increment
+			self.azims[j+1] -= increment
+			res[j] = increment
+			res[j+1] = increment
+			j += 2
+		print res
 
 	'''Helpers'''
+
+	def printStats(self):
+		print "azims ",self.azims
+		print "angle cost: ", self.cost()[0], " distance cost ",self.cost()[1]," total ",self.currCost
+		print "angle",self.endAngle()
+		print "distance",self.endDistance()
 
 	def endDistance(self):
 		return math.sqrt((self.end1b[0]-self.end2b[0])**2 + (self.end1b[1]-self.end2b[1])**2 + (self.end1b[2]-self.end2b[2])**2)
 
+	def endMidDistance(self):
+		return math.sqrt((self.end1a[0]-self.end2a[0])**2 + (self.end1a[1]-self.end2a[1])**2 + (self.end1a[2]-self.end2a[2])**2)
+
 	def endAngle(self):
 		v1 = self.end1b - self.end1a
 		v2 = self.end2b - self.end2a
+		dotProd = np.dot(v1,v2)
+		# return dotProd
+		# print math.degrees(tf.angle_between_vectors(v1,v2))
 		return 180-math.degrees(tf.angle_between_vectors(v1,v2))
 
 	def takeAzimuthStep(self,i):
@@ -242,24 +366,74 @@ class Knot:
 		temp = self.azims
 		temp[i] = astep
 		self.buildKnot(temp)
-		print "the cost with a 0.001 change in the",i," is ", str(self.cost())
-		print "the improvement is " +str(self.currCost-self.cost())
-		print ""
-		improvementRatio = (self.currCost-self.cost()) / self.currCost
-		print "improvement ratio: ",improvementRatio
+		# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
+		# print "the improvement is " +str(self.currCost-self.cost())
+		# print ""
+		improvementRatio = (self.currCost-self.cost()[2]) / self.currCost
+		# print "improvement ratio: ",improvementRatio
 		aIncrement = improvementRatio
-		print "a",i," incremenet: ",aIncrement
-		print ""
+		# print "a",i," incremenet: ",aIncrement
+		# print ""
 		return aIncrement
+
+	def takeBetaStep(self,i):
+		if i < len(self.azims) - 1:
+			azim = self.azims[i]
+			astep = azim+Knot.azimStep
+			temp = self.azims
+			temp[i] = astep
+			azim2 = self.azims[i+1]
+			a2step = azim2 - Knot.azimStep
+			temp[i+1] = a2step
+			azim = self.azims[i]
+			self.buildKnot(temp)
+			# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
+			# print "the improvement is " +str(self.currCost-self.cost())
+			# print ""
+			improvementRatio = (self.currCost-self.cost()[2]) / self.currCost
+			# print "improvement ratio: ",improvementRatio
+			aIncrement = improvementRatio
+			# print "a",i," incremenet: ",aIncrement
+			# print ""
+			return aIncrement
+		return 0
+
+	def takeGammaStep(self,i):
+		if i > 0 and i < len(self.azims)-1:
+			azim = self.azims[i]
+			astep = azim-2*Knot.azimStep
+			temp = self.azims
+			temp[i] = astep
+			azim2 = self.azims[i-1]
+			a2Step = azim2 + Knot.azimStep
+			temp[i-1] = a2Step
+			azim3 = self.azims[i+1]
+			a3Step = azim3 + Knot.azimStep
+			temp[i+1] = a3Step
+			self.buildKnot(temp)
+			# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
+			# print "the improvement is " +str(self.currCost-self.cost())
+			# print ""
+			improvementRatio = (self.currCost-self.cost()[2]) / self.currCost
+			# print "improvement ratio: ",improvementRatio
+			aIncrement = improvementRatio
+			# print "a",i," incremenet: ",aIncrement
+			# print ""
+			return aIncrement
+		return 0
 
 	def flipped(self,points):
 		#rotate 180
 		rotated = np.dot(points,tf.rotation_matrix(math.pi,[1,0,0])[:3,:3].T)
 		#translate out bend rad
 		rotated = rotated - np.array([Knot.bendRad,0,0])
-		# rotated = np.dot(rotated,  tf.translation_matrix([bendRad,0,0])[:3,:3])
 		#tilt
 		rotated = np.dot(rotated,tf.rotation_matrix(2*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
 		#translate back
 		rotated = rotated + np.array([Knot.bendRad,0,0])
 		return rotated
+
+	def wormLength(self):
+		segment = math.sqrt((self.end1a[0]-self.end1b[0])**2 + (self.end1a[1]-self.end1b[1])**2 + (self.end1a[2]-self.end1b[2])**2)
+		return segment*4*len(self.modules)
+

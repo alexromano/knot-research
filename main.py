@@ -32,7 +32,9 @@ edges = [
 [14,15],
 [15,0]
 ]
-azims = [0,0,0,-45.0,0]
+# azims = [0,0,0,-45.0,0,0,15,15]
+azims = [20,20,20,20,20,20,20,20,100,100,100,100,100,100,100,100]
+# azims = [20.130276310621998, 16.558409431835692, 15.151145015055574, -21.149336793460066, 82.85660752538558, -126.22683154632516, 80.00352835773987, -48.01690161445404, 59.054255033897476, 29.37069404749205, 264.478342772936, 59.50846683110751, 36.91104683858014, 156.04815229055808, 104.59333784123578, 41.68161439480237]
 utx = 55
 uty = 0
 utz = 0
@@ -88,7 +90,7 @@ def mainDisplay():
 	global azims
 	global knot
 	knot.buildKnot(azims)
-	knot.currCost = knot.cost()
+	knot.currCost = knot.cost()[2]
 	for module in knot.modules:
 
 		glBegin(GL_LINES)
@@ -144,12 +146,6 @@ def mainReshape(w,h):
 	glMatrixMode(GL_MODELVIEW)
 	glLoadIdentity()
 
-# def left(degrees, axis):
-# 	cos_theta = math.cos(degrees)
-# 	sin_theta = math.sin(degrees)
-# 	x = axis[0], y = axis[1], z = axis[2]
-# 	I = 
-
 def idle():
 	glutPostRedisplay()
 
@@ -170,35 +166,39 @@ def drag(x,y):
 def keyboard(key,x,y):
 	global knot
 	global azims
-	mapping = {')':0,'!':1,'@':2,'#':3,'$':4}
+	incMap = {'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'q':10,'w':11,'e':12,'r':13,'t':14,'y':15}
+	decMap = {')':0,'!':1,'@':2,'#':3,'$':4, '%':5, '^':6, '&':7,'*':8, '(':9,
+	'Q':10, 'W':11, 'E':12, 'R':13, 'T':14, 'Y':15}
+
 	if key == 27:
 		exit(0)
-	elif key in ['0','1','2','3','4']:
-		azims[int(key)] += 10
-	elif key in [')','!','@','#','$']:
-		azims[int(mapping[key])] -= 10
+	elif key in incMap.keys():
+		i = incMap[key]
+		if i < len(azims):
+			azims[i] += 10
+			knot.printStats()
+	elif key in decMap.keys():
+		i = decMap[key]
+		if i < len(azims):
+			azims[i] -= 10
+			knot.printStats()
 	elif key == "o":
 		# if not knot.optimizing:
 		# 	#save current azims and start optimizing
 		# 	# initialAzims = 
 		# 	knot.startOptimizing()
 		knot.optimize()
-	elif key == "r":
-		if knot.optimizing:
-			knot.stopOptimizing()
-		knot.buildKnot(initialAzims)
 	elif key == "+":
 		# if knot.optimizing:
 			#adjust step size bigger
-		knot.setSigma(knot.sigma*10)
+		knot.setSigma(knot.sigma*4)
 	elif key == "-":
 		# if knot.optimizing:
 			#adjust step size smaller
-		knot.setSigma(knot.sigma/10)
+		knot.setSigma(knot.sigma/4)
 	elif key == "x":
 		if knot.optimizing:
 			knot.stopOptimizing()
-
 
 	glutPostRedisplay()
 
