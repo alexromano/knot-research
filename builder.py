@@ -59,10 +59,10 @@ class Knot:
 	mlist = [m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15]
 
 	# azims = [0,0,0,-45.0,0]
-	utx = 55
+	utx = -55
 	uty = 0
 	utz = 0
-	ux = 03
+	ux = -3.34
 	uy = 0
 	uz = 0
 	azimStep = 0.001
@@ -70,6 +70,7 @@ class Knot:
 	def __init__(self):
 		self.modules = []
 		self.azims = []
+		# for trefoil, this is array of 3 points
 		self.end1a = []
 		self.end1b = []
 		self.end2a = []
@@ -80,6 +81,7 @@ class Knot:
 		self.s = None
 		self.symmetry = True
 		self.length = 0
+		self.trefoil = False
 
  	'''Knot Building Section '''
 
@@ -103,9 +105,41 @@ class Knot:
 					j = i%(len(self.azims)/2)
 					self.modules.append(self.module(j,False))
 			self.modules.append(self.buildBase())
-		self.length = self.wormLength()
+		# self.length = self.wormLength()
 
-	def module(self,numRotations,upper=True):
+	def buildTrefoil(self,azims):
+		self.trefoil = True
+		del self.modules[:]
+		del self.end1a[:]
+		del self.end1b[:]
+		del self.end2b[:]
+		del self.end2a[:]
+		
+		self.azims = azims
+		#first lobe
+		self.buildLobe(None)
+		#second lobe
+		self.buildLobe(120)
+		#third lobe
+		self.buildLobe(-120)
+
+	def buildLobe(self,rotation=None):
+		for i in range(len(self.azims)):
+			upper = self.module(i,rotations=[Knot.utx,Knot.uty,Knot.utz],translations=[Knot.ux,Knot.uy,Knot.uz],lobe_rotation=rotation)
+			lower = self.module(i,upper=False,rotations=[Knot.utx,Knot.uty,Knot.utz],translations=[Knot.ux,Knot.uy,Knot.uz],lobe_rotation=rotation)
+			self.modules.append(upper)
+			self.modules.append(lower)
+		base = self.buildBase()
+		base = np.dot(base,tf.rotation_matrix(math.radians(Knot.utx),[1,0,0])[:3,:3].T)
+		base = np.dot(base,tf.rotation_matrix(math.radians(Knot.uty),[0,1,0])[:3,:3].T)
+		base = np.dot(base,tf.rotation_matrix(math.radians(Knot.utz),[0,0,1])[:3,:3].T)
+		base = base + np.array([Knot.ux,Knot.uy,Knot.uz])
+		if rotation:
+			base = np.dot(base,tf.rotation_matrix(math.radians(rotation),[0,1,0])[:3,:3].T)
+		self.modules.append(base)
+
+
+	def module(self,numRotations,upper=True,rotations=None,translations=None,lobe_rotation=None):
 		numRotations +=1
 		m = 2
 		points = np.array(Knot.mlist+Knot.blist)
@@ -141,10 +175,9 @@ class Knot:
 				rFlipped = np.dot(rFlipped,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
 				rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 		
-		# if upper == False:
-			# m = -1
-		# else: m = 1
-		m  = 1
+		if upper == False and self.symmetry == True:
+			m = -1
+		else: m = 1
 		#half rotation for upper and lower so base module fits in between
 		rotated = rotated - np.array([Knot.bendRad,0,0])
 		rotated = np.dot(rotated,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
@@ -153,6 +186,23 @@ class Knot:
 		rFlipped= rFlipped - np.array([Knot.bendRad,0,0])
 		rFlipped = np.dot(rFlipped,tf.rotation_matrix(m*math.radians(Knot.tilt),[0,1,0])[:3,:3].T)
 		rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
+
+		if rotations:
+			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(rotations[0]),[1,0,0])[:3,:3].T)
+			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(rotations[1]),[0,1,0])[:3,:3].T)
+			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(rotations[2]),[0,0,1])[:3,:3].T)
+
+			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(rotations[0]),[1,0,0])[:3,:3].T)
+			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(rotations[1]),[0,1,0])[:3,:3].T)
+			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(rotations[2]),[0,0,1])[:3,:3].T)
+
+		if translations:
+			rotated = rotated + np.array(translations)
+			rFlipped = rFlipped + np.array(translations)
+
+		if lobe_rotation:
+			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(lobe_rotation),[0,1,0])[:3,:3].T)
+			rFlipped = np.dot(rFlipped,tf.rotation_matrix(math.radians(lobe_rotation),[0,1,0])[:3,:3].T)
 
 		#if end module, compute center of blist and center of all points
 		isEnd = False
@@ -167,22 +217,34 @@ class Knot:
 				x_bar = sum([r[0] for r in rFlipped])/len(rFlipped)
 				y_bar = sum([r[1] for r in rFlipped])/len(rFlipped)
 				z_bar = sum([r[2] for r in rFlipped])/len(rFlipped)
-				self.end1a = np.array([x_bar,y_bar,z_bar])
+				if self.trefoil:
+					self.end1a.append(np.array([x_bar,y_bar,z_bar]))
+				else:
+					self.end1a = np.array([x_bar,y_bar,z_bar])
 				b = rFlipped[rFlipped.shape[0]/2:]
 				b_x_bar = sum([r[0] for r in b])/len(b)
 				b_y_bar = sum([r[1] for r in b])/len(b)
 				b_z_bar = sum([r[2] for r in b])/len(b)
-				self.end1b = np.array([b_x_bar,b_y_bar,b_z_bar])
+				if self.trefoil:
+					self.end1b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
+				else:
+					self.end1b = np.array([b_x_bar,b_y_bar,b_z_bar])
 			else:
 				x_bar = sum([r[0] for r in rotated])/len(rotated)
 				y_bar = sum([r[1] for r in rotated])/len(rotated)
 				z_bar = sum([r[2] for r in rotated])/len(rotated)
-				self.end2a = np.array([x_bar,y_bar,z_bar])
+				if self.trefoil:
+					self.end2a.append(np.array([x_bar,y_bar,z_bar]))
+				else:
+					self.end2a = np.array([x_bar,y_bar,z_bar])
 				b = rotated[rotated.shape[0]/2:]
 				b_x_bar = sum([r[0] for r in b])/len(b)
 				b_y_bar = sum([r[1] for r in b])/len(b)
 				b_z_bar = sum([r[2] for r in b])/len(b)
-				self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
+				if self.trefoil:
+					self.end2b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
+				else:
+					self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
 
 		return rotated, rFlipped
 
@@ -223,12 +285,12 @@ class Knot:
 		angleFactor = 100
 		# if self.endDistance() < 0.35:
 			# angleFactor = 10
-		angle = self.endAngle()/(self.endDistance()*angleFactor)
-		distance = self.endDistance()
+		# angle = max(self.endAngle()/(self.endDistance()*angleFactor), 0.2)
+		# distance = self.endDistance()
 		# print "angle portion ", angle
 		# print "distance portion ", distance
-		return angle,distance,angle + distance
-		# return self.endDistance() + self.endMidDistance()
+		# return angle,distance,angle + distance
+		return 0,0,0
 
 	def optimize(self):
 		# if self.optimizing:
@@ -240,6 +302,9 @@ class Knot:
 			increments.append(self.takeAzimuthStep(i))
 			betas.append(self.takeBetaStep(i))
 			gammas.append(self.takeGammaStep(i))
+		print increments
+		print betas
+		print gammas
 		# time2 = time.time()
 		arr = [abs(x) for x in increments+betas+gammas]
 		biggest = float(max(arr))
@@ -347,16 +412,22 @@ class Knot:
 		print "distance",self.endDistance()
 
 	def endDistance(self):
+		if self.trefoil:
+			end1 = self.end1a[0]
+			end2 = self.end2a[2]
+			return math.sqrt((end1[0]-end2[0])**2 + (end1[1]-end2[1])**2 + (end1[2]-end2[2])**2)
 		return math.sqrt((self.end1b[0]-self.end2b[0])**2 + (self.end1b[1]-self.end2b[1])**2 + (self.end1b[2]-self.end2b[2])**2)
 
 	def endMidDistance(self):
 		return math.sqrt((self.end1a[0]-self.end2a[0])**2 + (self.end1a[1]-self.end2a[1])**2 + (self.end1a[2]-self.end2a[2])**2)
 
 	def endAngle(self):
-		v1 = self.end1b - self.end1a
-		v2 = self.end2b - self.end2a
-		dotProd = np.dot(v1,v2)
-		# return dotProd
+		if self.trefoil:
+			v1 = self.end1b[0] - self.end1a[0]
+			v2 = self.end2b[2] - self.end2a[2]
+		else:
+			v1 = self.end1b - self.end1a
+			v2 = self.end2b - self.end2a
 		# print math.degrees(tf.angle_between_vectors(v1,v2))
 		return 180-math.degrees(tf.angle_between_vectors(v1,v2))
 
@@ -365,10 +436,13 @@ class Knot:
 		astep = azim+Knot.azimStep
 		temp = self.azims
 		temp[i] = astep
-		self.buildKnot(temp)
+		if self.trefoil:
+			self.buildTrefoil(temp)
+		else:
+			self.buildKnot(temp)
 		# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
 		# print "the improvement is " +str(self.currCost-self.cost())
-		# print ""
+		# print ""	
 		improvementRatio = (self.currCost-self.cost()[2]) / self.currCost
 		# print "improvement ratio: ",improvementRatio
 		aIncrement = improvementRatio
@@ -386,7 +460,10 @@ class Knot:
 			a2step = azim2 - Knot.azimStep
 			temp[i+1] = a2step
 			azim = self.azims[i]
-			self.buildKnot(temp)
+			if self.trefoil:
+				self.buildTrefoil(temp)
+			else:
+				self.buildKnot(temp)
 			# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
 			# print "the improvement is " +str(self.currCost-self.cost())
 			# print ""
@@ -410,7 +487,10 @@ class Knot:
 			azim3 = self.azims[i+1]
 			a3Step = azim3 + Knot.azimStep
 			temp[i+1] = a3Step
-			self.buildKnot(temp)
+			if self.trefoil:
+				self.buildTrefoil(temp)
+			else:
+				self.buildKnot(temp)
 			# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
 			# print "the improvement is " +str(self.currCost-self.cost())
 			# print ""

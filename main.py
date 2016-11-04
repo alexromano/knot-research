@@ -32,8 +32,8 @@ edges = [
 [14,15],
 [15,0]
 ]
-# azims = [0,0,0,-45.0,0,0,15,15]
-azims = [20,20,20,20,20,20,20,20,100,100,100,100,100,100,100,100]
+azims = [0,0,0,-45.0,0]
+# azims = [0,0,0,0,0,0,0,0,0,0,0,0]
 # azims = [20.130276310621998, 16.558409431835692, 15.151145015055574, -21.149336793460066, 82.85660752538558, -126.22683154632516, 80.00352835773987, -48.01690161445404, 59.054255033897476, 29.37069404749205, 264.478342772936, 59.50846683110751, 36.91104683858014, 156.04815229055808, 104.59333784123578, 41.68161439480237]
 utx = 55
 uty = 0
@@ -89,7 +89,7 @@ def mainDisplay():
 	#built knot and draw modules
 	global azims
 	global knot
-	knot.buildKnot(azims)
+	knot.buildTrefoil(azims)
 	knot.currCost = knot.cost()[2]
 	for module in knot.modules:
 
@@ -128,12 +128,22 @@ def mainDisplay():
 	#draw end points
 	glBegin(GL_POINTS)
 	glColor(1.0,1.0,1.0)
-	glVertex3fv(knot.end1a)
-	glVertex3fv(knot.end1b)
-	glVertex3fv(knot.end2a)
-	glVertex3fv(knot.end2b)
+	if (type(knot.end1a) is list):
+		l = [knot.end1a,knot.end1b,knot.end2a,knot.end2b]
+		for i in range(len(l)):
+			for p in range(len(l[i])):
+				# print l[i][p]
+				if i == 1 and p == 0:
+					glVertex3fv(l[i][p])
+				elif i == 3 and p == 2:
+					glVertex3fv(l[i][p])
+	else:
+		#we have numpy arrays
+		glVertex3fv(knot.end1a)
+		glVertex3fv(knot.end1b)
+		glVertex3fv(knot.end2a)
+		glVertex3fv(knot.end2b)
 	glEnd()
-
 	glutSwapBuffers()
 
 def mainReshape(w,h):
