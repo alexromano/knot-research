@@ -67,9 +67,9 @@ class Knot:
 	uz = 0
 	azimStep = 0.0005
 
-	def __init__(self,azims):
+	def __init__(self):
 		self.modules = []
-		self.azims = azims
+		self.azims = []
 		self.trans = []
 		self.rot = []
 		# for trefoil, this is array of 3 points
@@ -94,15 +94,12 @@ class Knot:
  		self.modules.append(self.singleMod())
  		self.modules.append(self.singleMod(trans,rot))
 
-	def buildKnot(self,azims=None,symmetry=False):
+	def buildKnot(self,azims,symmetry=False):
 		del self.modules[:]
-		# if len(self.azims) == 0:
-		# 	self.azims = azims
-		if azims == None:
-			azims = self.azims
+		self.azims = azims
 		self.symmetry = symmetry
 		if symmetry:
-			for i in range(len(azims)):
+			for i in range(len(self.azims)):
 				self.modules.append(self.module(i))
 				self.modules.append(self.module(i,False))
 			self.modules.append(self.buildBase())
@@ -110,8 +107,8 @@ class Knot:
 			# print "ang",self.endAngle()
 			# print self.currCost
 		else:
-			for i in range(len(azims)):
-				self.modules.append(self.module(i,azims))
+			for i in range(len(self.azims)):
+				self.modules.append(self.module(i))
 			self.modules.append(self.buildBase())
 			# self.modules.append(self.buildBase())
 		# self.length = self.wormLength()
@@ -347,14 +344,14 @@ class Knot:
 			self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
 		return rotated, rFlipped
 
-	def module(self,numRotations,azims):
+	def module(self,numRotations):
 		numRotations +=1
 		m = 2
 		points = np.array(Knot.mlist+Knot.blist)
 		pointFlipped = self.flipped(points)
 		rotated = points
 		rFlipped = pointFlipped
-		# azims = self.azims
+		azims = self.azims
 		for i in range(numRotations):
 			aIndex = numRotations - i - 1
 			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(azims[aIndex]),[0,0,1])[:3,:3].T)
@@ -378,7 +375,7 @@ class Knot:
 		rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 
 		#if end module, compute center of blist and center of all points
-		isEnd = (numRotations-1) == (len(azims)-1)
+		isEnd = (numRotations-1) == (len(self.azims)-1)
 
 		if isEnd:
 			
@@ -512,9 +509,9 @@ class Knot:
 			increments.append(self.takeAzimuthStep(i))
 			betas.append(self.takeBetaStep(i))
 			gammas.append(self.takeGammaStep(i))
-		# print increments
-		# print betas
-		# print gammas
+		print increments
+		print betas
+		print gammas
 		# time2 = time.time()
 		arr = [abs(x) for x in increments+betas+gammas]
 		biggest = float(max(arr))
@@ -532,21 +529,19 @@ class Knot:
 			# betas[i] = betas[i]/biggest * Knot.azimStep
 			# gammas[i] = gammas[i]/biggest * Knot.azimStep
 		# time3 = time.time()
-		updateFunc = None
-		i = 0
 		if biggestArr == increments:
-			updateFunc = self.updateAzimsForSingleMove
+			for i in range(len(self.azims)):
+				self.azims[i] += (biggestArr[i]/biggest)*Knot.azimStep*self.sigma
 		elif biggestArr == betas:
 			i = 16-32+ind
-			# print "ind ",ind
-			# print "i ",i
-			updateFunc = self.updateAzimsForBetaMove
+			print "ind ",ind
+			print "i ",i
+			self.updateAzimsForBeta(i, biggest, biggestArr)
 		elif biggestArr == gammas:
 			i = -32+ind
-			# print "ind ",ind
-			# print "i ", i
-			updateFunc = self.updateAzimsForGammaMove
-		self.lineSearch(0,biggest,biggestArr,updateFunc)
+			print "ind ",ind
+			print "i ", i
+			self.updateAzimsForGamma(i, biggest, biggestArr)
 		# self.azims[i] += (increments[i]+betas[i]+gammas[i])*self.sigma
 		# time4 = time.time()
 		print "azims ",self.azims
@@ -554,65 +549,42 @@ class Knot:
 		# time5 = time.time()
 		self.currCost = self.cost()[2]
 		print "angle cost: ", self.cost()[0], " distance cost ",self.cost()[1]," total ",self.currCost
-		# print "angle",self.endAngle()
-		# print "distance",self.endDistance()
+		print "angle",self.endAngle()
+		print "distance",self.endDistance()
 		# print time2-time1
 		# print time3-time2
 		# print time4-time3
 		# print time5-time4
 		# self.s.enter(0.1,1,self.optimize,())
 
-	def lineSearch(self, i, biggest, arr, updateFunc):
-		sigma = 1
+	def lineSearch(self, i, biggest, arr, updateFunc, updateType):
+		a = 1
 		curr = self.cost()[2]
 		prev = self.cost()[2]
-		costs = []
-		for _ in range(20):
-			res = updateFunc(i,biggest,arr,sigma)
-			self.buildKnot(res)
+		while curr <= prev:
+			prev = curr
+			res = updateFunc(i,biggest,arr,a)
+			self.buildKnot(res) # need to change build a bit so not use self.azims or something idk fam
 			curr = self.cost()[2]
-			costs.append(curr)
-			sigma *= 2
-		ind = costs.index(min(costs))
-		sigma = 2 ** ind
-		# print sigma
-		# print prev
-		# print curr
-		# while curr <= prev:
-		# 	sigma *= 2
-		# 	prev = curr
-		# 	res = updateFunc(i,biggest,arr,sigma)
-		# 	print res
-		# 	self.buildKnot(res)
-		# 	curr = self.cost()[2]
-		# 	print sigma
-		# 	print prev
-		# 	print curr
-			
-		# sigma /=2
-		print "best sigma found: ",sigma
-		res = updateFunc(i,biggest,arr,sigma)
+			a *= 2
+		a/=2
+		res = updateFunc(i,biggest,arr,a)
 		self.azims = res
 
 
-	def updateAzimsForSingleMove(self,i,biggest,biggestArr,sigma):
-		temp = list(self.azims)
-		for j in range(len(temp)):
-			temp[j] += (biggestArr[j]/biggest)*Knot.azimStep*sigma
-		return temp
 
-	def updateAzimsForGammaMove(self,i, biggest, biggestArr, sigma):
-		# print biggestArr
+
+	def updateAzimsForGamma(self,i, biggest, biggestArr, a):
+		print biggestArr
 		res = [0]*len(self.azims)
-		temp = list(self.azims)
 		j = i
 		# change everything <= i
 		while (j >= 1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * sigma * Knot.azimStep
-			temp[j-1] += increment
-			temp[j] -= 2*increment
-			temp[j+1] += increment
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j-1] += increment
+			self.azims[j] -= 2*increment
+			self.azims[j+1] += increment
 			res[j-1] = increment
 			res[j] = 2*increment
 			res[j+1] = increment
@@ -621,27 +593,26 @@ class Knot:
 		j = i+3
 		while (j < len(biggestArr)-1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * sigma * Knot.azimStep
-			temp[j-1] += increment
-			temp[j] -= 2*increment
-			temp[j+1] += increment
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j-1] += increment
+			self.azims[j] -= 2*increment
+			self.azims[j+1] += increment
 			res[j-1] = increment
 			res[j] = 2*increment
 			res[j+1] = increment
 			j += 3
-		# print res
-		return temp
+		print res
+		# return res
 
-	def updateAzimsForBetaMove(self, i, biggest, biggestArr, sigma):
+	def updateAzimsForBeta(self, i, biggest, biggestArr):
 		res = [0]*len(self.azims)
-		temp = list(self.azims)
 		j = i
 		# change everything <= i
 		while (j >= 0):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * sigma * Knot.azimStep
-			temp[j] += increment
-			temp[j+1] -= increment
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j] += increment
+			self.azims[j+1] -= increment
 			res[j] = increment
 			res[j+1] = increment
 			j -= 2
@@ -649,14 +620,13 @@ class Knot:
 		j = i+2
 		while (j < len(biggestArr)-1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * sigma * Knot.azimStep
-			temp[j] += increment
-			temp[j+1] -= increment
+			increment = ratioFactor * self.sigma * Knot.azimStep
+			self.azims[j] += increment
+			self.azims[j+1] -= increment
 			res[j] = increment
 			res[j+1] = increment
 			j += 2
-		# print res
-		return temp
+		print res
 
 	'''Helpers'''
 
