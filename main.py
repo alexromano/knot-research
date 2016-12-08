@@ -33,17 +33,21 @@ edges = [
 [15,0]
 ]
 azims = [0,0,0,-45.0,0]
-# azims = [0,0,0,0,0,0,0,0,0,0,0,0]
-# azims = [20.130276310621998, 16.558409431835692, 15.151145015055574, -21.149336793460066, 82.85660752538558, -126.22683154632516, 80.00352835773987, -48.01690161445404, 59.054255033897476, 29.37069404749205, 264.478342772936, 59.50846683110751, 36.91104683858014, 156.04815229055808, 104.59333784123578, 41.68161439480237]
-utx = 55
+azims = [40, 0, 0, 0.0, 0, 0, 120, 0, 120, 120, 15, 100, 120, 120, 30, 45]
+# azims = [40, 0, 0, 0.0, 0, 0, 20, 0, 20, 20, 15, 10, 20, 20, 30, 45]
+trans = [8,4,-5]
+rot = [30,-50,10]
+# azims = [44.80429237442888, -4.2376028891688025, 8.078777353992281, -47.629185542039586, 23.98956606948402, -62.40799126988669, 117.03008939731846, 24.189136552534286, 223.9971350171729, 53.52623220783585, -1.6917141393291961, 46.59393778327448, 305.3573161374373, 2.339866839971895, 29.318816351384665, 176.26504667056665]
+# azims = [42.66869579052874, -0.31974522814420064, -3.556266470078884, 3.497303205401314, -34.95965415842811, 6.740473396965431, -17.621914081908656, 29.87370799428534, -99.02234507673073, 126.1019368057637, -56.27025991549906, -0.3701145794456697, 53.956827372345955, 0.4067178466013154, -1.0800684283205975, 39.785773052614175]
+utx = -55
 uty = 0
 utz = 0
-ux = 03
+ux = -3.34
 uy = 0
 uz = 0
 
 optimizing = False
-knot = bd.Knot()
+knot = bd.Knot(azims)
 
 def init():
 	# glLightModeli(GL_LIGHT_MODEL_TWO_SIDE,GL_TRUE)
@@ -88,8 +92,14 @@ def mainDisplay():
 	glEnd()
 	#built knot and draw modules
 	global azims
+	global ux
+	global utx
 	global knot
-	knot.buildTrefoil(azims)
+	global trans
+	global rot
+	# knot.buildEnds(trans,rot)
+	knot.buildKnot()
+	# knot.buildTrefoil(azims,utx,ux)
 	knot.currCost = knot.cost()[2]
 	for module in knot.modules:
 
@@ -176,6 +186,8 @@ def drag(x,y):
 def keyboard(key,x,y):
 	global knot
 	global azims
+	global utx
+	global ux
 	incMap = {'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'q':10,'w':11,'e':12,'r':13,'t':14,'y':15}
 	decMap = {')':0,'!':1,'@':2,'#':3,'$':4, '%':5, '^':6, '&':7,'*':8, '(':9,
 	'Q':10, 'W':11, 'E':12, 'R':13, 'T':14, 'Y':15}
@@ -198,17 +210,34 @@ def keyboard(key,x,y):
 		# 	# initialAzims = 
 		# 	knot.startOptimizing()
 		knot.optimize()
+		# knot.optimizeSingle()
 	elif key == "+":
 		# if knot.optimizing:
 			#adjust step size bigger
-		knot.setSigma(knot.sigma*4)
+		knot.setSigma(knot.sigma*2)
 	elif key == "-":
 		# if knot.optimizing:
 			#adjust step size smaller
-		knot.setSigma(knot.sigma/4)
+		knot.setSigma(knot.sigma/2)
 	elif key == "x":
 		if knot.optimizing:
 			knot.stopOptimizing()
+	elif key == "a":
+		#change utx
+		utx += 1
+		print "utx now ",utx
+	elif key == "A":
+		#change utx
+		utx -= 1
+		print "utx now ",utx
+	elif key == "z":
+		#change ux
+		ux += 0.01
+		print "ux now ",ux
+	elif key == "Z":
+		#change ux
+		ux -= 0.01
+		print "ux now ",ux
 
 	glutPostRedisplay()
 
