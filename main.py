@@ -32,17 +32,17 @@ edges = [
 [14,15],
 [15,0]
 ]
-azims = [0,0,0,-45.0,0]
-azims = [40, 0, 0, 0.0, 0, 0, 120, 0, 120, 120, 15, 100, 120, 120, 30, 45]
+azims = [65,0,0,-45.0,0]
+# azims = [40, 0, 0, 0.0, 0, 0, 120, 0, 120, 120, 15, 100, 120, 120, 30, 45]
 # azims = [40, 0, 0, 0.0, 0, 0, 20, 0, 20, 20, 15, 10, 20, 20, 30, 45]
 trans = [8,4,-5]
 rot = [30,-50,10]
 # azims = [44.80429237442888, -4.2376028891688025, 8.078777353992281, -47.629185542039586, 23.98956606948402, -62.40799126988669, 117.03008939731846, 24.189136552534286, 223.9971350171729, 53.52623220783585, -1.6917141393291961, 46.59393778327448, 305.3573161374373, 2.339866839971895, 29.318816351384665, 176.26504667056665]
 # azims = [42.66869579052874, -0.31974522814420064, -3.556266470078884, 3.497303205401314, -34.95965415842811, 6.740473396965431, -17.621914081908656, 29.87370799428534, -99.02234507673073, 126.1019368057637, -56.27025991549906, -0.3701145794456697, 53.956827372345955, 0.4067178466013154, -1.0800684283205975, 39.785773052614175]
-utx = -55
+utx = -40 #solution is -40
 uty = 0
 utz = 0
-ux = -3.34
+ux = -3.34 #solution is -3.4
 uy = 0
 uz = 0
 
@@ -98,11 +98,11 @@ def mainDisplay():
 	global trans
 	global rot
 	# knot.buildEnds(trans,rot)
-	knot.buildKnot()
-	# knot.buildTrefoil(azims,utx,ux)
-	knot.currCost = knot.cost()[2]
+	# knot.buildKnot()
+	knot.buildTrefoil(None,utx,ux)
+	if knot.currCost == 0:
+		knot.currCost = knot.cost()[2]
 	for module in knot.modules:
-
 		glBegin(GL_LINES)
 		glColor3f(1.0, 0.0, 0.0);
 		mod = module[0]
@@ -141,11 +141,16 @@ def mainDisplay():
 	if (type(knot.end1a) is list):
 		l = [knot.end1a,knot.end1b,knot.end2a,knot.end2b]
 		for i in range(len(l)):
+			# print i
+			# print len(l[i])
 			for p in range(len(l[i])):
-				# print l[i][p]
+				# print i
+				# print p
 				if i == 1 and p == 0:
+					# print l[i][p]
 					glVertex3fv(l[i][p])
 				elif i == 3 and p == 2:
+					# print l[i][p]
 					glVertex3fv(l[i][p])
 	else:
 		#we have numpy arrays

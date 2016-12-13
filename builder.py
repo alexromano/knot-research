@@ -59,17 +59,17 @@ class Knot:
 	mlist = [m0,m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15]
 
 	# azims = [0,0,0,-45.0,0]
-	utx = -55
+	utx = -40
 	uty = 0
 	utz = 0
-	ux = -3.34
+	ux = -3.4
 	uy = 0
 	uz = 0
 	azimStep = 0.0005
 
-	def __init__(self):
+	def __init__(self,azims):
 		self.modules = []
-		self.azims = []
+		self.azims = azims
 		self.trans = []
 		self.rot = []
 		# for trefoil, this is array of 3 points
@@ -81,7 +81,7 @@ class Knot:
 		self.sigma = 1
 		self.currCost = 0
 		self.s = None
-		self.symmetry = True
+		# self.symmetry = True
 		self.length = 0
 		self.trefoil = False
 
@@ -94,12 +94,15 @@ class Knot:
  		self.modules.append(self.singleMod())
  		self.modules.append(self.singleMod(trans,rot))
 
-	def buildKnot(self,azims,symmetry=False):
+	def buildKnot(self,azims=None,symmetry=False):
 		del self.modules[:]
-		self.azims = azims
+		# if len(self.azims) == 0:
+		# 	self.azims = azims
+		if azims == None:
+			azims = self.azims
 		self.symmetry = symmetry
 		if symmetry:
-			for i in range(len(self.azims)):
+			for i in range(len(azims)):
 				self.modules.append(self.module(i))
 				self.modules.append(self.module(i,False))
 			self.modules.append(self.buildBase())
@@ -107,42 +110,56 @@ class Knot:
 			# print "ang",self.endAngle()
 			# print self.currCost
 		else:
-			for i in range(len(self.azims)):
-				self.modules.append(self.module(i))
+			for i in range(len(azims)):
+				self.modules.append(self.module(i,azims))
 			self.modules.append(self.buildBase())
 			# self.modules.append(self.buildBase())
 		# self.length = self.wormLength()
 
-	def buildTrefoil(self,azims, utx, ux):
+	def buildTrefoil(self,azims=None, utx=-40, ux=-3.4):
 		self.trefoil = True
+		self.symmetry = True
 		del self.modules[:]
 		del self.end1a[:]
 		del self.end1b[:]
 		del self.end2b[:]
 		del self.end2a[:]
-		
-		self.azims = azims
+		if azims == None:
+			azims = self.azims
+		# self.modules = [None]*((len(self.azims)+1)*3)
 		#first lobe
-		self.buildLobe(None,utx,ux)
+		self.buildLobe(azims,None,utx,ux)
 		#second lobe
-		self.buildLobe(120,utx,ux)
+		self.buildLobe(azims,120,utx,ux)
 		#third lobe
-		self.buildLobe(-120,utx,ux)
+		self.buildLobe(azims,-120,utx,ux)
 
-	def buildLobe(self,rotation=None,utx=0,ux=0):
+	def buildLobe(self,azims,rotation=None,utx=0,ux=0):
 		for i in range(len(self.azims)):
-			upper = self.trefModule(i,rotations=[utx,0,0],translations=[ux,0,0],lobe_rotation=rotation)
-			lower = self.trefModule(i,upper=False,rotations=[utx,0,0],translations=[ux,0,0],lobe_rotation=rotation)
+			upper = self.trefModule(i,azims,rotations=[utx,0,0],translations=[ux,0,0],lobe_rotation=rotation)
+			lower = self.trefModule(i,azims,upper=False,rotations=[utx,0,0],translations=[ux,0,0],lobe_rotation=rotation)
 			self.modules.append(upper)
 			self.modules.append(lower)
+			# uInd = i
+			# lInd = i+len(self.azims)+1
+			# baseInd = len(self.azims)
+			# if rotation == 120:
+			# 	uInd *= 2
+			# 	lInd *= 2
+			# 	baseInd *= 2
+			# elif rotation == -120:
+			# 	uInd *= 3
+			# 	lInd *= 3
+			# 	baseInd *= 3
+			# self.modules[uInd] = upper
+			# self.modules[lInd] = lower
 		base = self.buildBase()
 		base = np.dot(base,tf.rotation_matrix(math.radians(utx),[1,0,0])[:3,:3].T)
-		# base = np.dot(base,tf.rotation_matrix(math.radians(Knot.uty),[0,1,0])[:3,:3].T)
-		# base = np.dot(base,tf.rotation_matrix(math.radians(Knot.utz),[0,0,1])[:3,:3].T)
 		base = base + np.array([ux,0,0])
 		if rotation:
 			base = np.dot(base,tf.rotation_matrix(math.radians(rotation),[0,1,0])[:3,:3].T)
 		self.modules.append(base)
+		# self.modules[baseInd] = base
 
 	# for 10 azimuth Knot:
 	# 11 modules
@@ -191,14 +208,14 @@ class Knot:
 	# 	else:
 	# 		# we are in the middle module
 
-	def trefModule(self,numRotations, upper=True,rotations = None,translations=None,lobe_rotation=None):
+	def trefModule(self,numRotations, azims,upper=True,rotations = None,translations=None,lobe_rotation=None):
 		numRotations +=1
 		m = 2
 		points = np.array(Knot.mlist+Knot.blist)
 		pointFlipped = self.flipped(points)
 		rotated = points
 		rFlipped = pointFlipped
-		azims = self.azims
+		# azims = self.azims
 		if upper == False:
 			if self.symmetry:
 				azims = [-a for a in self.azims]
@@ -269,35 +286,29 @@ class Knot:
 				x_bar = sum([r[0] for r in rFlipped])/len(rFlipped)
 				y_bar = sum([r[1] for r in rFlipped])/len(rFlipped)
 				z_bar = sum([r[2] for r in rFlipped])/len(rFlipped)
-				if self.trefoil:
-					self.end1a.append(np.array([x_bar,y_bar,z_bar]))
-				else:
-					self.end1a = np.array([x_bar,y_bar,z_bar])
+				
+				self.end1a.append(np.array([x_bar,y_bar,z_bar]))
+				
 				b = rFlipped[rFlipped.shape[0]/2:]
 				b_x_bar = sum([r[0] for r in b])/len(b)
 				b_y_bar = sum([r[1] for r in b])/len(b)
 				b_z_bar = sum([r[2] for r in b])/len(b)
-				if self.trefoil:
-					self.end1b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
-				else:
-					self.end1b = np.array([b_x_bar,b_y_bar,b_z_bar])
+				
+				self.end1b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
+				
 			else:
 				x_bar = sum([r[0] for r in rotated])/len(rotated)
 				y_bar = sum([r[1] for r in rotated])/len(rotated)
 				z_bar = sum([r[2] for r in rotated])/len(rotated)
-				if self.trefoil:
-					self.end2a.append(np.array([x_bar,y_bar,z_bar]))
-				else:
-					self.end2a = np.array([x_bar,y_bar,z_bar])
+				self.end2a.append(np.array([x_bar,y_bar,z_bar]))
+				
 				b = rotated[rotated.shape[0]/2:]
 				b_x_bar = sum([r[0] for r in b])/len(b)
 				b_y_bar = sum([r[1] for r in b])/len(b)
 				b_z_bar = sum([r[2] for r in b])/len(b)
-				if self.trefoil:
-					self.end2b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
-				else:
-					self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
-
+				
+				self.end2b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
+				
 		return rotated, rFlipped
 
 	def singleMod(self,trans=None,rot=None):
@@ -344,14 +355,14 @@ class Knot:
 			self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
 		return rotated, rFlipped
 
-	def module(self,numRotations):
+	def module(self,numRotations,azims):
 		numRotations +=1
 		m = 2
 		points = np.array(Knot.mlist+Knot.blist)
 		pointFlipped = self.flipped(points)
 		rotated = points
 		rFlipped = pointFlipped
-		azims = self.azims
+		# azims = self.azims
 		for i in range(numRotations):
 			aIndex = numRotations - i - 1
 			rotated = np.dot(rotated,tf.rotation_matrix(math.radians(azims[aIndex]),[0,0,1])[:3,:3].T)
@@ -375,7 +386,7 @@ class Knot:
 		rFlipped = rFlipped + np.array([Knot.bendRad,0,0])
 
 		#if end module, compute center of blist and center of all points
-		isEnd = (numRotations-1) == (len(self.azims)-1)
+		isEnd = (numRotations-1) == (len(azims)-1)
 
 		if isEnd:
 			
@@ -384,6 +395,7 @@ class Knot:
 			x_bar = sum([r[0] for r in rFlipped])/len(rFlipped)
 			y_bar = sum([r[1] for r in rFlipped])/len(rFlipped)
 			z_bar = sum([r[2] for r in rFlipped])/len(rFlipped)
+			
 			if self.trefoil:
 				self.end1a.append(np.array([x_bar,y_bar,z_bar]))
 			else:
@@ -415,17 +427,13 @@ class Knot:
 		x_bar = sum([r[0] for r in rotated])/len(rotated)
 		y_bar = sum([r[1] for r in rotated])/len(rotated)
 		z_bar = sum([r[2] for r in rotated])/len(rotated)
-		if self.trefoil:
-			self.end2a.append(np.array([x_bar,y_bar,z_bar]))
-		else:
+		if self.trefoil == False:
 			self.end2a = np.array([x_bar,y_bar,z_bar])
 		b = rotated[rotated.shape[0]/2:]
 		b_x_bar = sum([r[0] for r in b])/len(b)
 		b_y_bar = sum([r[1] for r in b])/len(b)
 		b_z_bar = sum([r[2] for r in b])/len(b)
-		if self.trefoil:
-			self.end2b.append(np.array([b_x_bar,b_y_bar,b_z_bar]))
-		else:
+		if self.trefoil == False:
 			self.end2b = np.array([b_x_bar,b_y_bar,b_z_bar])
 
 		return rotated,rFlipped
@@ -500,6 +508,7 @@ class Knot:
 		print "distance",self.endDistance()
 	
 	def optimize(self):
+		# print "before optimize currCost ", self.currCost
 		# if self.optimizing:
 		increments = []
 		betas = []
@@ -517,35 +526,58 @@ class Knot:
 		biggest = float(max(arr))
 		biggestArr = []
 		ind = arr.index(biggest)
-		if ind < 16:
+		print ind
+		if ind < len(self.azims):
 			biggestArr = increments
-		elif ind >= 16 and ind < 32:
+		elif ind >= len(self.azims) and ind < len(self.azims)*2:
 			biggestArr = betas
 		else:
 			biggestArr = gammas
 		# for i in range(len(self.azims)):
 		# 	biggestArr[i] = biggestArr[i]/biggest * Knot.azimStep
-			# increments[i] = increments[i]/biggest * Knot.azimStep			
-			# betas[i] = betas[i]/biggest * Knot.azimStep
-			# gammas[i] = gammas[i]/biggest * Knot.azimStep
+		# 	increments[i] = increments[i]/biggest * Knot.azimStep			
+		# 	betas[i] = betas[i]/biggest * Knot.azimStep
+		# 	gammas[i] = gammas[i]/biggest * Knot.azimStep
 		# time3 = time.time()
+		# updateFunc = None
+		i = 0
+		# if biggestArr == increments:
+		# 	updateFunc = self.updateAzimsForSingleMove
+		# elif biggestArr == betas:
+		# 	i = 16-32+ind
+		# 	# print "ind ",ind
+		# 	# print "i ",i
+		# 	updateFunc = self.updateAzimsForBetaMove
+		# elif biggestArr == gammas:
+		# 	i = -32+ind
+		# 	# print "ind ",ind
+		# 	# print "i ", i
+		# 	updateFunc = self.updateAzimsForGammaMove
+		# self.lineSearch(i,biggest,biggestArr,updateFunc)
+
 		if biggestArr == increments:
+			newArr = [b/biggest for b in increments]
+			print newArr
 			for i in range(len(self.azims)):
 				self.azims[i] += (biggestArr[i]/biggest)*Knot.azimStep*self.sigma
 		elif biggestArr == betas:
-			i = 16-32+ind
-			print "ind ",ind
-			print "i ",i
-			self.updateAzimsForBeta(i, biggest, biggestArr)
+			i = len(self.azims)-(2*len(self.azims))+ind
+			# print "ind ",ind
+			# print "i ",i
+			self.updateAzimsForBetaMove(i, biggest, biggestArr,self.sigma)
 		elif biggestArr == gammas:
-			i = -32+ind
-			print "ind ",ind
-			print "i ", i
-			self.updateAzimsForGamma(i, biggest, biggestArr)
+			i = -(2*len(self.azims))+ind
+			# print "ind ",ind
+			# print "i ", i
+			self.updateAzimsForGammaMove(i, biggest, biggestArr,self.sigma)
 		# self.azims[i] += (increments[i]+betas[i]+gammas[i])*self.sigma
 		# time4 = time.time()
 		print "azims ",self.azims
-		self.buildKnot(self.azims)
+		
+		if self.trefoil:
+			self.buildTrefoil(self.azims)
+		else:
+			self.buildKnot(self.azims)
 		# time5 = time.time()
 		self.currCost = self.cost()[2]
 		print "angle cost: ", self.cost()[0], " distance cost ",self.cost()[1]," total ",self.currCost
@@ -557,34 +589,67 @@ class Knot:
 		# print time5-time4
 		# self.s.enter(0.1,1,self.optimize,())
 
-	def lineSearch(self, i, biggest, arr, updateFunc, updateType):
-		a = 1
-		curr = self.cost()[2]
-		prev = self.cost()[2]
-		while curr <= prev:
-			prev = curr
-			res = updateFunc(i,biggest,arr,a)
-			self.buildKnot(res) # need to change build a bit so not use self.azims or something idk fam
+
+	def lineSearch(self, i, biggest, arr, updateFunc):
+		sigma = 1
+		# curr = self.cost()[2]
+		# prev = self.cost()[2]
+		costs = []
+		for _ in range(20):
+			res = updateFunc(i,biggest,arr,sigma)
+			if self.trefoil:
+				self.buildTrefoil(res)
+			else:
+				self.buildKnot(res)
 			curr = self.cost()[2]
-			a *= 2
-		a/=2
-		res = updateFunc(i,biggest,arr,a)
+			costs.append(curr)
+			sigma *= 2
+		print costs
+		ind = costs.index(min(costs))
+		sigma = 2 ** ind
+		# print sigma
+		# print prev
+		# print curr
+		# while curr <= prev:
+		# 	sigma *= 2
+		# 	prev = curr
+		# 	res = updateFunc(i,biggest,arr,sigma)
+		# 	print res
+		# 	self.buildKnot(res)
+		# 	curr = self.cost()[2]
+		# 	print sigma
+		# 	print prev
+		# 	print curr
+			
+		# sigma /=2
+		# print "best sigma found: ",sigma
+		res = updateFunc(i,biggest,arr,sigma)
 		self.azims = res
 
 
+	def updateAzimsForSingleMove(self,i,biggest,biggestArr,sigma):
+		temp = list(self.azims)
+		for j in range(len(temp)):
+			temp[j] += (biggestArr[j]/biggest)*Knot.azimStep*sigma
+		return temp
 
-
-	def updateAzimsForGamma(self,i, biggest, biggestArr, a):
-		print biggestArr
+	def updateAzimsForGammaMove(self,i, biggest, biggestArr, sigma):
+		# print biggestArr
 		res = [0]*len(self.azims)
+		temp = list(self.azims)
 		j = i
+		# print "biggestArr ", biggestArr
+		# print "biggest ", biggest
 		# change everything <= i
 		while (j >= 1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * self.sigma * Knot.azimStep
+			increment = ratioFactor * sigma * Knot.azimStep
 			self.azims[j-1] += increment
 			self.azims[j] -= 2*increment
 			self.azims[j+1] += increment
+			# temp[j-1] += increment
+			# temp[j] -= 2*increment
+			# temp[j+1] += increment
 			res[j-1] = increment
 			res[j] = 2*increment
 			res[j+1] = increment
@@ -593,26 +658,35 @@ class Knot:
 		j = i+3
 		while (j < len(biggestArr)-1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * self.sigma * Knot.azimStep
+			increment = ratioFactor * sigma * Knot.azimStep
 			self.azims[j-1] += increment
 			self.azims[j] -= 2*increment
 			self.azims[j+1] += increment
+			# temp[j-1] += increment
+			# temp[j] -= 2*increment
+			# temp[j+1] += increment
 			res[j-1] = increment
 			res[j] = 2*increment
 			res[j+1] = increment
 			j += 3
-		print res
-		# return res
+		# print res
+		return temp
 
-	def updateAzimsForBeta(self, i, biggest, biggestArr):
+	def updateAzimsForBetaMove(self, i, biggest, biggestArr, sigma):
 		res = [0]*len(self.azims)
+		temp = list(self.azims)
 		j = i
+		print "biggestArr ", biggestArr
+		print "biggest ", biggest
+		print i
 		# change everything <= i
 		while (j >= 0):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * self.sigma * Knot.azimStep
+			increment = ratioFactor * sigma * Knot.azimStep
 			self.azims[j] += increment
 			self.azims[j+1] -= increment
+			# temp[j] += increment
+			# temp[j+1] -= increment
 			res[j] = increment
 			res[j+1] = increment
 			j -= 2
@@ -620,13 +694,16 @@ class Knot:
 		j = i+2
 		while (j < len(biggestArr)-1):
 			ratioFactor = biggestArr[j]/biggest
-			increment = ratioFactor * self.sigma * Knot.azimStep
+			increment = ratioFactor * sigma * Knot.azimStep
 			self.azims[j] += increment
 			self.azims[j+1] -= increment
+			# temp[j] += increment
+			# temp[j+1] -= increment
 			res[j] = increment
 			res[j+1] = increment
 			j += 2
-		print res
+		# print res
+		return temp
 
 	'''Helpers'''
 
@@ -638,8 +715,8 @@ class Knot:
 
 	def endDistance(self):
 		if self.trefoil:
-			end1 = self.end1a[0]
-			end2 = self.end2a[2]
+			end1 = self.end1b[0]
+			end2 = self.end2b[2]
 			return math.sqrt((end1[0]-end2[0])**2 + (end1[1]-end2[1])**2 + (end1[2]-end2[2])**2)
 		return math.sqrt((self.end1b[0]-self.end2b[0])**2 + (self.end1b[1]-self.end2b[1])**2 + (self.end1b[2]-self.end2b[2])**2)
 
@@ -665,13 +742,14 @@ class Knot:
 			self.buildTrefoil(temp)
 		else:
 			self.buildKnot(temp)
-		# print "the cost with a 0.001 change in the",i," is ", str(self.cost())
-		# print "the improvement is " +str(self.currCost-self.cost())
-		# print ""	
+		print "the current cost is ", self.currCost
+		print "the cost with a 0.001 change in the",i," is ", str(self.cost()[2])
+		print "the improvement is " +str(self.currCost-self.cost()[2])
+		print ""	
 		improvementRatio = (self.currCost-self.cost()[2]) / self.currCost
-		# print "improvement ratio: ",improvementRatio
+		print "improvement ratio: ",improvementRatio
 		# print "a",i," incremenet: ",aIncrement
-		# print ""
+		print ""
 		return improvementRatio
 
 	def takeBetaStep(self,i):
