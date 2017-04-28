@@ -144,7 +144,7 @@ def mainDisplay():
 	glEnd()
 
 	# glBegin(GL_POINTS)
-	# glColor3f(1.0, 0.0, 0.0)
+	# glColor3f(1.0, 1.0, 1.0)
 	# for i in range(len(c)):
 	# 	glVertex3fv(c[i])
 	# glEnd()

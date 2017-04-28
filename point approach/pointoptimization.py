@@ -24,9 +24,8 @@ class Knot:
 
 		distanceStd = self.distanceStd(points)
 		angleDev = self.angleDev(points)
-		# separationDev = self.separationDev(points)
 
-		return distanceStd + 10*angleDev #+ (separationDev**2)
+		return distanceStd + 10*angleDev
 
 	def takeStep(self,coord,i):
 		point = self.points[i]
@@ -78,13 +77,12 @@ class Knot:
 				increments.append([x,y,z])
 
 			inc = np.array(increments)
-			# biggestX = float(max(inc[:,0]))
-			# biggestY = float(max(inc[:,1]))
-			# biggestZ = float(max(inc[:,2]))
-			# ind = increments.index(biggest)
+
 			for i in range(len(increments)):
 				# incPoints = np.array([inc[i,0]/biggestX,inc[i,1]/biggestY,inc[i,2]/biggestZ])
 				self.points[i] += inc[i]*Knot.STEPSIZE*self.SIGMA
+			# account for separation of points
+			self.points = self.separation(self.points)
 
 			#recompute cost
 			newCost = self.cost(self.points)
@@ -127,9 +125,7 @@ class Knot:
 			v2 = p3-p2
 			angle_rads = tf.angle_between_vectors(v1,v2)
 			cosines.append(math.cos(angle_rads))
-		#degrees? radians? check.q
 		dev = np.average(((np.array(cosines) - math.cos(0.5236))**2))
-		# angleDev = np.sqrt(np.average((np.cos(np.array(angles))-math.cos(30))**2))
 
 		print "cosines ", cosines[0:3]
 		print "angle dev ", dev
@@ -161,45 +157,69 @@ class Knot:
 		return dstd
 
 
-	def separationDev(self,points, diameter=2.0):
+	def separation(self,points, diameter=2.0):
 		# calculate separation of points from eachother (other than neighbors)
 		# can't use symmetry)
-		separations = []
-		#build whole knot
+		comparisons = []
+		#use reflected points rotated -120 and unreflected points rotated 120
 		c = points
-		c2 = np.dot(c, tf.rotation_matrix(math.pi,c[0],[0,0,0])[:3,:3].T)
-		c2 = np.array(c2[::-1])
-		c = np.concatenate((c2[0:len(c2)-1],c))
+	
+		reflected = np.dot(c, tf.rotation_matrix(math.pi,c[0],[0,0,0])[:3,:3].T)
+		reflected = np.array(reflected[::-1])
+		# c = np.concatenate((c2[0:len(c2)-1],c))
 		
 		rotated1 = np.dot(c, tf.rotation_matrix(math.radians(-120),[0,0,1])[:3,:3].T)
 		rotated1 = rotated1[1:]
-		rotated2 = np.dot(c, tf.rotation_matrix(math.radians(120),[0,0,1])[:3,:3].T)
+		rotated2 = np.dot(reflected, tf.rotation_matrix(math.radians(120),[0,0,1])[:3,:3].T)
 		rotated2 = rotated2[1:]
-		c = np.concatenate((c,rotated1))
-		c = np.concatenate((c,rotated2))
-		c = c[1:]
+		final = np.concatenate((rotated1,rotated2))
+		final = final[1:]
+		for p in range(len(points)):
+			for i in final:
+				d = np.linalg.norm((points[p]-i))
+				if d < diameter*1.2:
+					#move p away
+					print "point is ", points[p]
+					print "other points is ", i
+					ratio = 1.0 - d/diameter
+					movementMagnitude = ratio/2 * diameter
+					u = tf.unit_vector((i-points[p]))
+					points[p] = points[p] - (movementMagnitude*u)
 
-		# find pairwise distances (except neighbors)
-		for i in range(len(points)):
-			for j in range(len(points)):
-				if i == j:
-					continue
-				if i == 0:
-					if j == len(points)-1 or j == 1:
-						continue
-				elif i == len(points)-1:
-					if j == 0 or j == len(points) - 2:
-						continue
-				else:
-					if j == i+1 or j == i - 1:
-						continue
-				separations.append(np.linalg.norm(points[i]-points[j]))
-		dev = np.average(((np.array(separations) - (diameter*1.2))**2))
+					print "distance is ", d
+					print "moving point by ", movementMagnitude
+					print "new point is ", points[p]
+		# c = points
+		# c2 = np.dot(c, tf.rotation_matrix(math.pi,c[0],[0,0,0])[:3,:3].T)
+		# c2 = np.array(c2[::-1])
+		# c = np.concatenate((c2[0:len(c2)-1],c))
+		
+		# rotated1 = np.dot(c, tf.rotation_matrix(math.radians(-120),[0,0,1])[:3,:3].T)
+		# rotated1 = rotated1[1:]
+		# rotated2 = np.dot(c, tf.rotation_matrix(math.radians(120),[0,0,1])[:3,:3].T)
+		# rotated2 = rotated2[1:]
+		# c = np.concatenate((c,rotated1))
+		# c = np.concatenate((c,rotated2))
+		# c = c[1:]
 
-		print "separations ", separations[0:3]
-		print "separation dev ", dev
+		# # find pairwise distances (except neighbors)
+		# for i in range(len(points)):
+		# 	for j in range(len(points)):
+		# 		if i == j:
+		# 			continue
+		# 		if i == 0:
+		# 			if j == len(points)-1 or j == 1:
+		# 				continue
+		# 		elif i == len(points)-1:
+		# 			if j == 0 or j == len(points) - 2:
+		# 				continue
+		# 		else:
+		# 			if j == i+1 or j == i - 1:
+		# 				continue
+		# 		separations.append(np.linalg.norm(points[i]-points[j]))
+		# dev = np.average(((np.array(separations) - (diameter*1.2))**2))
 
-		return dev
+		return points
 
 
 
