@@ -28,4 +28,6 @@ Think only in terms of the center axes of each module. Parameterize the space by
 **Template**
 Contains template files I made for students to use when starting a project like this. Boiler plate code for defining geometry, building that geometry with PyOpenGL, and a crystal ball type interface for interacting with the OpenGL window.
 
+A tech report which used this setup can be found here: https://www2.eecs.berkeley.edu/Pubs/TechRpts/2017/EECS-2017-114.pdf
+
 
